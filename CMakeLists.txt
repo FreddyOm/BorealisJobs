@@ -13,6 +13,9 @@ project(
 
 message("Building ${CMAKE_PROJECT_NAME} v${CMAKE_PROJECT_VERSION}")
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
 # Project source files
 set(SOURCES 
     src/main.cpp 
