@@ -1,18 +1,18 @@
 #pragma once
-#include "../core.h"
+#include "config.h"
 #include <vector>
 #include "job.h"
 
 
 namespace Borealis::Jobs
 {
-	CCE_API void InitializeThreadpool(int numOfThreads = -1);
-	CCE_API void DeinitializeThreadpool();
+	BOREALIS_API void InitializeThreadpool(int numOfThreads = -1);
+	BOREALIS_API void DeinitializeThreadpool();
 
-	CCE_API void BusyWaitForCounter(Counter* const cnt, const int desiredCount = 0);
-	CCE_API void BusyWaitForCounterAndFree(Counter* const cnt, const int desiredCount = 0);
+	BOREALIS_API void BusyWaitForCounter(Counter* const cnt, const int desiredCount = 0);
+	BOREALIS_API void BusyWaitForCounterAndFree(Counter* const cnt, const int desiredCount = 0);
 
-	CCE_API void KickJob(Job job);
+	BOREALIS_API void KickJob(Job job);
 
 	/// <summary>
 	/// Kick multiple jobs at once. Use this preferrably when possible since it 
@@ -21,7 +21,7 @@ namespace Borealis::Jobs
 	/// <param name="jobs">A pointer to a job description array.</param>
 	/// <param name="jobCount">The amount of jobs to push.</param>
 	/// <returns></returns>
-	CCE_API void KickJobs(Job* jobs, int jobCount);
+	BOREALIS_API void KickJobs(Job* jobs, int jobCount);
 	
 	// @TODO: Implement specifically for main thread to preferably 
 	// pick main thread jobs.

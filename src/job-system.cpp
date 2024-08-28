@@ -1,7 +1,4 @@
 #include "job-system.h"
-#include "../analysis/logger.h"
-#include "../analysis/debug.h"
-#include "../../thirdparty/src/optick.h"
 
 #include "scoped-spinlock.h"
 #include "spinlock.h"
@@ -11,12 +8,8 @@
 #include <mutex>
 #include <unordered_map>
 
-#if defined(DEBUG) || defined(DEBUG_PROFILE)
-#include "../editor/job-profiler/jobProfiler.h"
-#endif
 namespace Borealis::Jobs
 {
-	
 #define NUM_FIBERS 150
 
 #if NUM_FIBERS > 2028 
@@ -37,11 +30,11 @@ namespace Borealis::Jobs
 
 	std::queue<LPVOID> fiber_pool{};
 
-	CCE::SpinLock thread_fibers_sl{};
-	CCE::SpinLock job_queue_sl{};
-	CCE::SpinLock fiber_pool_sl{};
-	CCE::SpinLock wait_list_sl{};
-	CCE::SpinLock schedule_list_sl{};
+	SpinLock thread_fibers_sl{};
+	SpinLock job_queue_sl{};
+	SpinLock fiber_pool_sl{};
+	SpinLock wait_list_sl{};
+	SpinLock schedule_list_sl{};
 
 	struct WaitData
 	{
@@ -147,13 +140,8 @@ namespace Borealis::Jobs
 
 	Jobs::Job GetNextJob()
 	{
-		OPTICK_EVENT();
 		ScopedSpinLock lock(job_queue_sl);
 		Jobs::Job jobCpy;
-
-		OPTICK_TAG("JobQueueHigh", job_queue_high.size());
-		OPTICK_TAG("JobQueueNormal", job_queue_normal.size());
-		OPTICK_TAG("JobQueueLow", job_queue_low.size());
 
 		if (!job_queue_high.empty())
 		{
@@ -182,9 +170,7 @@ namespace Borealis::Jobs
 	/// </summary>
 	void CheckWaitList()
 	{
-		OPTICK_EVENT();
 		wait_list_sl.Acquire();
-		OPTICK_TAG("WaitListSize", wait_list.size());
 
 		bool waitListAlreadyReleased = false;
 
@@ -234,8 +220,6 @@ namespace Borealis::Jobs
 		while (runThreads)
 		{
 			{
-				OPTICK_EVENT();
-
 				UpdateWaitData();	// @TODO: Try to somehow do this more elegantly!!
 
 				CheckWaitList();
@@ -244,8 +228,6 @@ namespace Borealis::Jobs
 					continue;
 
 				Job jobCpy = GetNextJob();
-
-				OPTICK_TAG("JobValidity", jobCpy.m_EntryPoint == nullptr ? "Invalid" : "Valid");
 
 				if (jobCpy.m_EntryPoint != nullptr)
 				{
@@ -273,25 +255,20 @@ namespace Borealis::Jobs
 
 	LPVOID GetFiber()
 	{
-		OPTICK_EVENT();
 		LPVOID fiber;
 		// Critical section!
 		{
-			CCE::ScopedSpinLock lock(fiber_pool_sl);
+			ScopedSpinLock lock(fiber_pool_sl);
 			DASSERT(fiber_pool.size() != 0, "Job system ran out of fibers!");
 
 			fiber = fiber_pool.front();
-			fiber_pool.pop();
-
-			OPTICK_TAG("FibersLeft", fiber_pool.size());
-
+			fiber_pool.pop()
 		}
 		return fiber;
 	}
 
 	void RunThread()
 	{
-		OPTICK_THREAD("WORKER");
 		LPVOID threadFiber = ConvertThreadToFiber(0);
 
 		// Store the fibers running in this thread inside this list.
@@ -304,7 +281,7 @@ namespace Borealis::Jobs
 
 		// Reconvert the fiber to a thread.
 		ConvertFiberToThread();
-		LOG("Terminated Thread %d", GetCurrentThreadId());
+		printf("Terminated Thread %d", GetCurrentThreadId());
 	}
 
 	void InitializeThreadpool(int numOfThreads)
@@ -316,8 +293,8 @@ namespace Borealis::Jobs
 		if (numOfThreads < 1 || numOfThreads > hardwareThreads)
 			numOfThreads = hardwareThreads - 1;
 
-		LOG_JOBS("Number of logical cpu cores: %i", std::thread::hardware_concurrency());
-		LOG_JOBS("Number of worker threads: %i", numOfThreads);
+		printf("Number of logical cpu cores: %i", std::thread::hardware_concurrency());
+		printf("Number of worker threads: %i", numOfThreads);
 		worker_threads.reserve(numOfThreads);
 		thread_fibers.reserve(numOfThreads);
 
@@ -348,18 +325,15 @@ namespace Borealis::Jobs
 
 	void ReturnFiber(LPVOID fiber)
 	{
-		OPTICK_EVENT();
 		// Critical section!
 		{
-			CCE::ScopedSpinLock lock(fiber_pool_sl);
+			ScopedSpinLock lock(fiber_pool_sl);
 			fiber_pool.push(fiber);
 		}
 	}
 
 	void KickJob(Job job)
 	{
-		OPTICK_EVENT();
-		OPTICK_TAG("Job", job.m_FunctionName.c_str());
 		ScopedSpinLock lock(job_queue_sl);
 
 		switch (job.m_Priority)
@@ -378,8 +352,6 @@ namespace Borealis::Jobs
 
 	void KickJobs(Job* jobs, int jobCount)
 	{
-		OPTICK_EVENT();
-		OPTICK_TAG("Job", jobs[0].m_FunctionName.c_str());
 		ScopedSpinLock lock(job_queue_sl);
 
 		for (int i = 0; i < jobCount; ++i)
@@ -449,20 +421,12 @@ namespace Borealis::Jobs
 				schedule_list.emplace(fiber, std::move(WaitData(GetCurrentFiber(), cnt, desiredCount)));
 			}
 
-			PRE_SWITCH_FIBER();
-
 			SwitchToFiber(fiber);
-
-			POST_SWITCH_FIBER();
 		}
 	}
 
 	void BusyWaitForCounterAndFree(Counter* const cnt, const int desiredCount)
 	{
-		OPTICK_EVENT();
-		OPTICK_TAG("CurrentCount:", cnt->load(std::memory_order_consume));
-		OPTICK_TAG("DesiredCount:", desiredCount);
-
 		if (cnt->load(std::memory_order_consume) > desiredCount)
 		{
 			// Fetch new fiber
@@ -475,11 +439,8 @@ namespace Borealis::Jobs
 				schedule_list.emplace(fiber, std::move(WaitData(GetCurrentFiber(), cnt, desiredCount)));
 			}
 
-			PRE_SWITCH_FIBER();
 			// Switch to new fiber
 			SwitchToFiber(GetFiber());
-
-			POST_SWITCH_FIBER();
 		}
 
 		delete cnt;

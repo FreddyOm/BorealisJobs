@@ -19,7 +19,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 # Project source files
 set(SOURCES 
     src/main.cpp 
+    src/job-system.cpp
+)
+
+set(HEADERS
+    src/config.h
+    src/job-system.h
+    src/job.h
+    src/scoped-spinlock.h
+    src/spinlock.h
 )
 
 # Create executable
-add_executable(${CMAKE_PROJECT_NAME} ${SOURCES})
+add_library(${CMAKE_PROJECT_NAME} SHARED EXCLUDE_FROM_ALL ${SOURCES} ${HEADERS})
