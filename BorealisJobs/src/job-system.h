@@ -6,8 +6,8 @@
 
 namespace Borealis::Jobs
 {
-	BOREALIS_API void InitializeThreadpool(int numOfThreads = -1);
-	BOREALIS_API void DeinitializeThreadpool();
+	BOREALIS_API void InitializeJobSystem(int numOfThreads = -1);
+	BOREALIS_API void DeinitializeJobSystem();
 
 	BOREALIS_API void BusyWaitForCounter(Counter* const cnt, const int desiredCount = 0);
 	BOREALIS_API void BusyWaitForCounterAndFree(Counter* const cnt, const int desiredCount = 0);
@@ -26,8 +26,8 @@ namespace Borealis::Jobs
 	// @TODO: Implement specifically for main thread to preferably 
 	// pick main thread jobs.
 	
-	// CCE_API void KickMainThreadJob(Job job);
-	// CCE_API void KickMainThreadJobs(Job* job, int jobCount);
+	// BOREALIS_API void KickMainThreadJob(Job job);
+	// BOREALIS_API void KickMainThreadJobs(Job* job, int jobCount);
 
 	void RunThread();
 	void UpdateWaitData();

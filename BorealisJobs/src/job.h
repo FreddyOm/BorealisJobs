@@ -3,6 +3,12 @@
 #include "spinlock.h"
 #include <string>
 
+#ifdef WIN32
+#include <Windows.h>
+#else
+#error The Borealis job system is currently only available for Windows.
+#endif
+
 // @TODO: Add Win32 or in case of LINUX / MAC something similar
 
 namespace Borealis::Jobs
@@ -86,6 +92,7 @@ namespace Borealis::Jobs
 			other.m_Priority = Priority::NORMAL;
 			other.m_FunctionName = "";
 		}
+
 		Job& operator=(Job&& other) noexcept
 		{
 			m_EntryPoint = other.m_EntryPoint;

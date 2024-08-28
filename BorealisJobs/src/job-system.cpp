@@ -1,12 +1,19 @@
 #include "job-system.h"
-
 #include "scoped-spinlock.h"
 #include "spinlock.h"
 
+#include <assert.h>
 #include <thread>
 #include <queue>
 #include <mutex>
 #include <unordered_map>
+
+#ifdef WIN32
+#include <Windows.h>
+#else
+#error The Borealis job system is currently only available for Windows.
+#endif
+
 
 namespace Borealis::Jobs
 {
@@ -67,7 +74,7 @@ namespace Borealis::Jobs
 	std::unordered_map<LPVOID, WaitData> schedule_list{};
 	
 
-	void DeinitializeThreadpool()
+	void DeinitializeJobSystem()
 	{
 		runThreads.store(false, std::memory_order_release);
 
@@ -183,7 +190,7 @@ namespace Borealis::Jobs
 			{
 				if (it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount)
 				{
-					DASSERT(it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount, 
+					assert(it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount, 
 						"Counter is not yet equal or less than the desired count!");
 					
 					isValidData = true;
@@ -259,10 +266,10 @@ namespace Borealis::Jobs
 		// Critical section!
 		{
 			ScopedSpinLock lock(fiber_pool_sl);
-			DASSERT(fiber_pool.size() != 0, "Job system ran out of fibers!");
+			assert(fiber_pool.size() != 0, "Job system ran out of fibers!");
 
 			fiber = fiber_pool.front();
-			fiber_pool.pop()
+			fiber_pool.pop();
 		}
 		return fiber;
 	}
@@ -281,10 +288,10 @@ namespace Borealis::Jobs
 
 		// Reconvert the fiber to a thread.
 		ConvertFiberToThread();
-		printf("Terminated Thread %d", GetCurrentThreadId());
+		printf("Terminated Thread %d\n", GetCurrentThreadId());
 	}
 
-	void InitializeThreadpool(int numOfThreads)
+	void InitializeJobSystem(int numOfThreads)
 	{
 		if (numOfThreads == 0) { return; }
 		unsigned int hardwareThreads = std::thread::hardware_concurrency();
@@ -293,8 +300,8 @@ namespace Borealis::Jobs
 		if (numOfThreads < 1 || numOfThreads > hardwareThreads)
 			numOfThreads = hardwareThreads - 1;
 
-		printf("Number of logical cpu cores: %i", std::thread::hardware_concurrency());
-		printf("Number of worker threads: %i", numOfThreads);
+		printf("Number of logical cpu cores: %i\n", std::thread::hardware_concurrency());
+		printf("Number of worker threads: %i\n", numOfThreads);
 		worker_threads.reserve(numOfThreads);
 		thread_fibers.reserve(numOfThreads);
 
@@ -395,25 +402,11 @@ namespace Borealis::Jobs
 
 	void BusyWaitForCounter(Counter* const cnt, const int desiredCount)
 	{
-		{
-			int busySpinCount = 100;
-
-			while (busySpinCount > 0)
-			{
-				--busySpinCount;
-				if (cnt->load(std::memory_order_consume) <= desiredCount)
-				{
-					REGISTER_EARLY_WAIT_EXIT();
-					return;
-				}
-			}
-		}
-
 		if (cnt->load(std::memory_order_consume) > desiredCount)
 		{
 			// Fetch new fiber
 			LPVOID fiber = GetFiber();	
-			DASSERT(fiber != nullptr, "Fiber to switch to was null!");
+			assert(fiber != nullptr, "Fiber to switch to was null!");
 			
 			// Schedule for wait list!
 			{
@@ -431,7 +424,7 @@ namespace Borealis::Jobs
 		{
 			// Fetch new fiber
 			LPVOID fiber = GetFiber();
-			DASSERT(fiber != nullptr, "Fiber to switch to was null!");
+			assert(fiber != nullptr, "Fiber to switch to was null!");
 		
 			// Schedule for wait list!
 			{
