@@ -60,7 +60,7 @@ namespace Borealis::Jobs
 		/// Explicitly copies the job - only used for debug purposes currently.
 		/// </summary>
 		/// <returns>A copy of the job description.</returns>
-		Job Copy()
+		Job Copy() const
 		{
 			Job cpy(m_EntryPoint, m_Priority, m_FunctionName, m_Param);
 			cpy.m_DesiredCount = m_DesiredCount;

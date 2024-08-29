@@ -17,44 +17,51 @@
 
 namespace Borealis::Jobs
 {
-#define NUM_FIBERS 150
-
-#if NUM_FIBERS > 2028 
-#error There can only be a maximum of 2028 fibers present at the same time!
-#endif
-
-	HANDLE mainThread{};
-	LPVOID mainFiber{};
+	// ------------------ General data ------------------
+	std::thread::id g_mainThreadId{};
+	LPVOID g_mainFiber{};
+	std::atomic<bool> g_runThreads(true);
 	
-	std::atomic<bool> runThreads(true);
+	// ------------------ Thread and Fiber data ------------------
 
-	std::vector<std::thread*> worker_threads = {};
-	std::unordered_map<HANDLE, LPVOID> thread_fibers = {};
-
-	std::deque<Job> job_queue_high{};
-	std::deque<Job> job_queue_normal{};
-	std::deque<Job> job_queue_low{};
-
+	std::vector<std::thread*> g_worker_threads = {};
 	std::queue<LPVOID> fiber_pool{};
 
+	std::unordered_map<std::thread::id, LPVOID> g_thread_fibers = {};
+
+	// ------------------ Job queues ------------------
+
+	std::deque<Job> g_job_queue_high{};
+	std::deque<Job> g_job_queue_normal{};
+	std::deque<Job> g_job_queue_low{};
+	std::deque<Job> g_main_thread_job_queue{};
+
+	// ------------------ Spinlocks ------------------
+
 	SpinLock thread_fibers_sl{};
-	SpinLock job_queue_sl{};
+	SpinLock job_queue_low_sl{};
+	SpinLock job_queue_normal_sl{};
+	SpinLock job_queue_high_sl{};
+	SpinLock main_thread_job_queue_sl{};
 	SpinLock fiber_pool_sl{};
 	SpinLock wait_list_sl{};
 	SpinLock schedule_list_sl{};
+
+	// ------------------ Wait data ------------------
 
 	struct WaitData
 	{
 		LPVOID m_Fiber = nullptr;
 		Counter* m_pCounter = nullptr;
 		int m_desiredCount = 0;
+		bool m_isMainThreadJob = false;
 
 		WaitData()
-			: m_Fiber(nullptr), m_pCounter(nullptr), m_desiredCount(0)
+			: m_Fiber(nullptr), m_pCounter(nullptr), m_desiredCount(0), m_isMainThreadJob(false)
 		{ }
 
-		WaitData(const LPVOID _fiber, Counter* _counter, const int desiredCount)
-			: m_Fiber(_fiber), m_pCounter(_counter), m_desiredCount(desiredCount)
+		WaitData(const LPVOID _fiber, Counter* _counter, int desiredCount, const bool isMainThreadJob = false)
+			: m_Fiber(_fiber), m_pCounter(_counter), m_desiredCount(desiredCount), m_isMainThreadJob(std::this_thread::get_id() == g_mainThreadId)
 		{ }
 
 		~WaitData() = default;
@@ -74,25 +81,54 @@ namespace Borealis::Jobs
 	std::unordered_map<LPVOID, WaitData> schedule_list{};
 	
 
+	/// <summary>
+	/// Forces the execution flow to be paused here and continued at the same point but by the main thread!
+	/// </summary>
+	void ForceMainThreadExecution()
+	{
+		if (std::this_thread::get_id() == g_mainThreadId)
+			return;	// We are already on the main thread -> Early exit!
+
+		LPVOID fiber = GetFiber();
+		assert(fiber != nullptr);
+
+		// Schedule for wait list!
+		{
+			ScopedSpinLock lock(schedule_list_sl);
+			Counter cnt = Counter(0);
+			schedule_list.emplace(fiber, std::move(WaitData(GetCurrentFiber(), &cnt, 0, true)));
+		}
+		
+		SwitchToFiber(fiber);
+
+		printf("Continuing execution on thread %d\n", std::this_thread::get_id());
+	}
+
+	/// <summary>
+	/// Deinitializes the job system and clears all the resources.
+	/// </summary>
 	void DeinitializeJobSystem()
 	{
-		runThreads.store(false, std::memory_order_release);
+		printf("Deinitializing job system from thread %d\n", GetCurrentThreadId());
+
+		g_runThreads.store(false, std::memory_order_release);
 
 		Sleep(1);
 
-		ConvertFiberToThread(); // @TODO: Which thread will this be and will it be joined soon?
+		if(IsThreadAFiber())
+			ConvertFiberToThread(); // @TODO: Which thread will this be and will it be joined soon?
 
 		// Join and clear the worker threads
 		{
-			for (auto thread : worker_threads)
+			for (auto* thread : g_worker_threads)
 			{
-				if (thread->joinable())
+				if (std::this_thread::get_id() != thread->get_id() && thread->joinable())
 				{
 					thread->join();
 				}
 			}
 
-			worker_threads.clear();
+			g_worker_threads.clear();
 		}
 		
 		// Clear the fiber pool and delete all fibers in the pool
@@ -120,56 +156,84 @@ namespace Borealis::Jobs
 		// Delete all scheduled fibers and clear the list
 		{
 			ScopedSpinLock lock(schedule_list_sl);
-			for (auto kvp : schedule_list)
+			for (auto& kvp : schedule_list)
 			{
 				DeleteFiber(kvp.second.m_Fiber);
 			}
 			schedule_list.clear();
 		}
 		
-		// Delete the fibers which were created on the threads initially
-		{
-			ScopedSpinLock lock(thread_fibers_sl);
+		g_thread_fibers.clear();
 
-			for (auto kvp : thread_fibers)
-			{
-				DeleteFiber(kvp.second);
-			}
-			
-			thread_fibers.clear();
-		}
-
-		job_queue_high.clear();
-		job_queue_normal.clear();
-		job_queue_low.clear();
-
+		g_job_queue_high.clear();
+		g_job_queue_normal.clear();
+		g_job_queue_low.clear();
 	}
 
-	Jobs::Job GetNextJob()
+	/// <summary>
+	/// Returns the next valid job that is available. Will prioritize as follows:
+	/// 1. Main thread jobs
+	/// 2. High priority jobs
+	/// 3. Normal priority jobs
+	/// 4. Low priority jobs
+	/// </summary>
+	/// <returns>TThe selected job from either of the four lists.</returns>
+	Job GetNextJob()
 	{
-		ScopedSpinLock lock(job_queue_sl);
 		Jobs::Job jobCpy;
-
-		if (!job_queue_high.empty())
+		
+		// MAIN THREAD queue
+		// Handle main thread jobs seperately!
+		if (std::this_thread::get_id() == g_mainThreadId)
 		{
-			jobCpy = std::move(job_queue_high.front());
-			job_queue_high.pop_front();
+			ScopedSpinLock lock(main_thread_job_queue_sl);
+			
+			if (!g_main_thread_job_queue.empty()) 
+			{
+				jobCpy = std::move(g_main_thread_job_queue.front());
+				g_main_thread_job_queue.pop_front();
+			}
+
 			return jobCpy;
 		}
-
-		if (!job_queue_normal.empty())
+		
+		// HIGH Priority queue
 		{
-			jobCpy = std::move(job_queue_normal.front());
-			job_queue_normal.pop_front();
-			return jobCpy;
-		}
+			ScopedSpinLock lock(job_queue_high_sl);
 
-		if (!job_queue_low.empty())
-		{
-			jobCpy = std::move(job_queue_low.front());
-			job_queue_low.pop_front();
-			return jobCpy;
+			if (!g_job_queue_high.empty())
+			{
+				jobCpy = std::move(g_job_queue_high.front());
+				g_job_queue_high.pop_front();
+				return jobCpy;
+			}
 		}
+		
+		// NORMAL Priority queue
+		{
+			ScopedSpinLock lock(job_queue_normal_sl);
+
+			if (!g_job_queue_normal.empty())
+			{
+				jobCpy = std::move(g_job_queue_normal.front());
+				g_job_queue_normal.pop_front();
+				return jobCpy;
+			}
+		}
+		
+		// LOW Priority queue
+		{
+			ScopedSpinLock lock(job_queue_low_sl);
+			
+			if (!g_job_queue_low.empty())
+			{
+				jobCpy = std::move(g_job_queue_low.front());
+				g_job_queue_low.pop_front();
+				return jobCpy;
+			}
+		}
+		
+		return jobCpy;
 	}
 
 	/// <summary>
@@ -190,8 +254,7 @@ namespace Borealis::Jobs
 			{
 				if (it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount)
 				{
-					assert(it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount, 
-						"Counter is not yet equal or less than the desired count!");
+					assert(it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount);
 					
 					isValidData = true;
 					validWaitData = it;
@@ -200,7 +263,7 @@ namespace Borealis::Jobs
 			}
 
 			// If job is ready, remove wait data entry, return fiber and switch to waiting fiber!
-			if (isValidData)
+			if (isValidData && validWaitData->m_isMainThreadJob == (std::this_thread::get_id() == g_mainThreadId))
 			{
 				LPVOID fiberToSwitchTo = validWaitData->m_Fiber;
 
@@ -222,16 +285,23 @@ namespace Borealis::Jobs
 			wait_list_sl.Release();
 	}
 
+	/// <summary>
+	/// The infinite fiber routine that is being run on each fiber. The individual routine steps are the following:
+	/// 1. Update the wait data and copy scheduled wait data to the wait list.
+	/// 2. Check the wait list for entries and exectue them prioritized.
+	/// 3. check if any job is available.
+	/// 4. If at least one job is available, get the next job, validate it and execute it.
+	/// </summary>
 	VOID RunFiber()
 	{
-		while (runThreads)
+		while (g_runThreads)
 		{
 			{
 				UpdateWaitData();	// @TODO: Try to somehow do this more elegantly!!
 
 				CheckWaitList();
 
-				if (job_queue_high.empty() && job_queue_normal.empty() && job_queue_low.empty())
+				if (g_job_queue_high.empty() && g_job_queue_normal.empty() && g_job_queue_low.empty() && g_main_thread_job_queue.empty())
 					continue;
 
 				Job jobCpy = GetNextJob();
@@ -257,16 +327,23 @@ namespace Borealis::Jobs
 		}
 
 		// Switch back to the initial RunThread Fiber
-		SwitchToFiber(thread_fibers.at(GetCurrentThread()));
+		if (std::this_thread::get_id() == g_mainThreadId)
+			return;
+		
+		SwitchToFiber(g_thread_fibers.at(std::this_thread::get_id()));
 	}
 
+	/// <summary>
+	/// Gets a fiber from the fiber pool.
+	/// </summary>
+	/// <returns>A new fiber to execute the nwext job on.</returns>
 	LPVOID GetFiber()
 	{
 		LPVOID fiber;
 		// Critical section!
 		{
 			ScopedSpinLock lock(fiber_pool_sl);
-			assert(fiber_pool.size() != 0, "Job system ran out of fibers!");
+			assert(fiber_pool.size() != 0);
 
 			fiber = fiber_pool.front();
 			fiber_pool.pop();
@@ -274,23 +351,72 @@ namespace Borealis::Jobs
 		return fiber;
 	}
 
+	/// <summary>
+	/// The thread routine. Since it switches to the fiber routine mid-function, it doesn't have to be a loop.
+	/// Also handles converting the fibers back to a thread.
+	/// </summary>
 	void RunThread()
 	{
 		LPVOID threadFiber = ConvertThreadToFiber(0);
+		auto threadID = std::this_thread::get_id();
 
 		// Store the fibers running in this thread inside this list.
 		{
 			ScopedSpinLock lock(thread_fibers_sl);
-			thread_fibers.emplace(GetCurrentThread(), threadFiber);
+			g_thread_fibers.emplace(threadID, threadFiber);
 		}
 
 		SwitchToFiber(GetFiber());
 
 		// Reconvert the fiber to a thread.
 		ConvertFiberToThread();
-		printf("Terminated Thread %d\n", GetCurrentThreadId());
+		printf("Terminating Thread %d ...\n", std::this_thread::get_id());
 	}
 
+	/// <summary>
+	/// Creates and initializes the global fiber pool.
+	/// </summary>
+	void CreateFiberPool()
+	{
+		for (int i = 0; i < NUM_FIBERS(); ++i)
+		{
+			LPVOID fiber = CreateFiber(1024, (LPFIBER_START_ROUTINE)&RunFiber, NULL);
+			fiber_pool.push(fiber);
+		}
+
+		wait_list.reserve(fiber_pool.size());
+	}
+
+	/// <summary>
+	/// Creates and initializes the thread pool and some dependant resources.
+	/// </summary>
+	/// <param name="numOfThreads">The amount of threads to spawn in the thread pool.</param>
+	void CreateThreadPool(int numOfThreads)
+	{
+		// Init map and array with the amount of worker threads to be spawned
+		g_thread_fibers.reserve(numOfThreads);
+		g_worker_threads.reserve(numOfThreads);
+
+		// Set some global thread and fiber information
+		g_mainThreadId = std::this_thread::get_id();
+
+		std::thread* workerThread = nullptr;
+
+		for (unsigned short t_index = 0; t_index < numOfThreads; ++t_index)
+		{
+			// Spawn threads
+			workerThread = new std::thread(RunThread);
+			auto hndl = workerThread->native_handle();
+
+			// Add to list
+			g_worker_threads.push_back(workerThread);
+		}
+	}
+
+	/// <summary>
+	/// Initializes the job system 
+	/// </summary>
+	/// <param name="numOfThreads"></param>
 	void InitializeJobSystem(int numOfThreads)
 	{
 		if (numOfThreads == 0) { return; }
@@ -299,37 +425,23 @@ namespace Borealis::Jobs
 		// Define number of threads
 		if (numOfThreads < 1 || numOfThreads > hardwareThreads)
 			numOfThreads = hardwareThreads - 1;
-
+		
 		printf("Number of logical cpu cores: %i\n", std::thread::hardware_concurrency());
 		printf("Number of worker threads: %i\n", numOfThreads);
-		worker_threads.reserve(numOfThreads);
-		thread_fibers.reserve(numOfThreads);
 
-		mainThread = GetCurrentThread();
-		mainFiber = ConvertThreadToFiber(0);
-		std::thread* workerThread = nullptr;
-		runThreads.store(true, std::memory_order_relaxed);
+		// Store true to enable the infinite working routine on each thread
+		g_runThreads.store(true, std::memory_order_relaxed);
+		
+		CreateFiberPool(); // and reserve wait list to the maximum number of possible fibers
+		CreateThreadPool(numOfThreads);
 
-		for (int i = 0; i < NUM_FIBERS; ++i)
-		{
-			LPVOID fiber = CreateFiber(1024, (LPFIBER_START_ROUTINE) &RunFiber, NULL);
-			fiber_pool.push(fiber);
-		}
-
-		wait_list.reserve(fiber_pool.size());
-
-		// Create worker threads
-		for (unsigned short t_index = 0; t_index < numOfThreads; ++t_index)
-		{
-			// Spawn threads
-			workerThread = new std::thread(RunThread);
-			auto hndl = workerThread->native_handle();
-
-			// Add to list
-			worker_threads.push_back(workerThread);
-		}
+		g_mainFiber = ConvertThreadToFiber(0);
 	}
 
+	/// <summary>
+	/// Returns a fiber to the fiber pool.
+	/// </summary>
+	/// <param name="fiber"></param>
 	void ReturnFiber(LPVOID fiber)
 	{
 		// Critical section!
@@ -339,45 +451,101 @@ namespace Borealis::Jobs
 		}
 	}
 
-	void KickJob(Job job)
+	/// <summary>
+	/// Schedules a job to be executed by the worker threads.
+	/// </summary>
+	/// <param name="job">The job to be executed.</param>
+	void KickJob(Job& job)
 	{
-		ScopedSpinLock lock(job_queue_sl);
-
 		switch (job.m_Priority)
 		{
-		case Priority::HIGH:
-			job_queue_high.push_back(std::move(job));
-			break;
-		case Priority::NORMAL:
-			job_queue_normal.push_back(std::move(job));
-			break;
-		case Priority::LOW:
-			job_queue_low.push_back(std::move(job));
-			break;
-		}
-	}
-
-	void KickJobs(Job* jobs, int jobCount)
-	{
-		ScopedSpinLock lock(job_queue_sl);
-
-		for (int i = 0; i < jobCount; ++i)
-		{
-			switch (jobs[i].m_Priority)
-			{
 			case Priority::HIGH:
-				job_queue_high.push_back(std::move(jobs[i]));
+			{
+				ScopedSpinLock lock(job_queue_high_sl);
+				g_job_queue_high.push_back(std::move(job));
 				break;
+			}		
 			case Priority::NORMAL:
-				job_queue_normal.push_back(std::move(jobs[i]));
+			{
+				ScopedSpinLock lock(job_queue_normal_sl);
+				g_job_queue_normal.push_back(std::move(job));
 				break;
+			}
 			case Priority::LOW:
-				job_queue_low.push_back(std::move(jobs[i]));
+			{
+				ScopedSpinLock lock(job_queue_low_sl);
+				g_job_queue_low.push_back(std::move(job));
 				break;
 			}
 		}
 	}
 
+	/// <summary>
+	/// Schedules a bunch of jobs to be executed by the worker threads.
+	/// </summary>
+	/// <param name="jobs">A pointer to the job array.</param>
+	/// <param name="jobCount">The amount of jobs to be scheduled. Must be the size of the referenced job array.</param>
+	void KickJobs(Job* jobs, int jobCount)
+	{
+		for (int i = 0; i < jobCount; ++i)
+		{
+			switch (jobs[i].m_Priority)
+			{
+				case Priority::HIGH:
+				{
+					ScopedSpinLock lock(job_queue_high_sl);
+					g_job_queue_high.push_back(std::move(jobs[i]));
+					break;
+				}
+				case Priority::NORMAL:
+				{
+					ScopedSpinLock lock(job_queue_normal_sl);
+					g_job_queue_normal.push_back(std::move(jobs[i]));
+					break;
+				}
+				case Priority::LOW:
+				{
+					ScopedSpinLock lock(job_queue_low_sl);
+					g_job_queue_low.push_back(std::move(jobs[i]));
+					break;
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Schedules a job to be executed by the main thread. 
+	/// Do not use this extensively or the performance will be similar to single core performance plus overhead!!
+	/// </summary>
+	/// <param name="job">The job to be executed on the main thread.</param>
+	void KickMainThreadJob(Job& job)
+	{
+		ScopedSpinLock lock(main_thread_job_queue_sl);
+		g_main_thread_job_queue.push_back(std::move(job));
+	}
+
+	/// <summary>
+	/// Schedules multiple jobs to be executed by the main thread. 
+	/// Do not use this extensively or the performance will be similar to single core performance plus overhead!!
+	/// </summary>
+	/// <param name="jobs">The jobs to be executed on the main thread.</param>
+	/// <param name="jobCount">The amount of jobs to be executed on the main thread.</param>
+	void KickMainThreadJobs(Job* jobs, int jobCount)
+	{
+		ScopedSpinLock lock(main_thread_job_queue_sl);
+
+		for (int i = 0; i < jobCount; ++i)
+		{
+			g_main_thread_job_queue.push_back(std::move(jobs[i]));
+		}
+	}
+
+	/// <summary>
+	/// Checks if a job + fiber was recently pushed to be scheduled in the wait list. 
+	/// If the fiber that scheduled the waitdata was already switched from, the wait data can be safely pushed to the wait list.
+	/// !! ***Important: This function seems to be unnecessary overhead but is essential for avoiding race conditions of the fiber
+	/// being not switched from yet but already finished in the wait list.*** !!
+	/// </summary>
 	void UpdateWaitData()
 	{
 		ScopedSpinLock lock(schedule_list_sl);
@@ -400,13 +568,19 @@ namespace Borealis::Jobs
 		}
 	}
 
-	void BusyWaitForCounter(Counter* const cnt, const int desiredCount)
+	/// <summary>
+	/// Waits for the counter to become the desired count (or by default 0) and puts the job onto the wait list during meantime.
+	/// This call is the synchronisation point in the execution flow.
+	/// </summary>
+	/// <param name="cnt">The counter to wait on.</param>
+	/// <param name="desiredCount">The desired count the counter needs to reach in order to continue execution.</param>
+	void WaitForCounter(Counter* const cnt, const int desiredCount)
 	{
 		if (cnt->load(std::memory_order_consume) > desiredCount)
 		{
 			// Fetch new fiber
 			LPVOID fiber = GetFiber();	
-			assert(fiber != nullptr, "Fiber to switch to was null!");
+			assert(fiber != nullptr);
 			
 			// Schedule for wait list!
 			{
@@ -418,13 +592,19 @@ namespace Borealis::Jobs
 		}
 	}
 
-	void BusyWaitForCounterAndFree(Counter* const cnt, const int desiredCount)
+	/// <summary>
+	/// Waits for the counter to become the desired count (or by default 0) and puts the job onto the wait list during meantime.
+	/// When done, this function frees the heap allocated counter. This call is the synchronisation point in the execution flow.
+	/// </summary>
+	/// <param name="cnt">The counter to wait on. Expected to be heap allocated!</param>
+	/// <param name="desiredCount">The desired count the counter needs to reach in order to continue execution.</param>
+	void WaitForCounterAndFree(Counter* const cnt, const int desiredCount)
 	{
 		if (cnt->load(std::memory_order_consume) > desiredCount)
 		{
 			// Fetch new fiber
 			LPVOID fiber = GetFiber();
-			assert(fiber != nullptr, "Fiber to switch to was null!");
+			assert(fiber != nullptr);
 		
 			// Schedule for wait list!
 			{

@@ -15,16 +15,16 @@ JobReturnType DoWork(uintptr_t seed = 383628)
     std::uniform_real_distribution<> dis(0.0, 1.0);
 
     // Create a vector of random doubles
-    std::vector<double> data(300);
+    std::vector<double> data(900);
     for (auto& elem : data) {
         elem = dis(gen);
     }
 
     // Perform computationally expensive operations
-    for (size_t i = 0; i < 300; ++i) {
+    for (size_t i = 0; i < 900; ++i) {
         double sum = 0.0;
-        for (size_t j = 0; j < 300; ++j) {
-            sum += std::sin(data[j]) * std::cos(data[(i + j) % 300]);
+        for (size_t j = 0; j < 900; ++j) {
+            sum += std::sin(data[j]) * std::cos(data[(i + j) % 900]);
         }
         data[i] = std::exp(std::fabs(sum));
     }
@@ -35,8 +35,10 @@ JobReturnType DoWork(uintptr_t seed = 383628)
 
 int main()
 {
-
+    printf("Press ENTER to start the heavy work on a single core... \n");
     std::cin.get();
+    printf("Doing work... \n");
+
     auto start_single_core = std::chrono::steady_clock::now();
 
     DoWork();         DoWork();
@@ -63,8 +65,12 @@ int main()
     auto stop_single_core = std::chrono::steady_clock::now();
     auto interval = stop_single_core - start_single_core;
 
-    printf("Single threaded function calls took %d microseconds!\n", 
-        std::chrono::duration_cast<std::chrono::microseconds>(interval).count());
+    printf("The work was executed in one single thread in %d milliseconds!\n", 
+        std::chrono::duration_cast<std::chrono::milliseconds>(interval).count());
+
+    printf("Press ENTER to start the heavy work on %d cores... \n", (std::thread::hardware_concurrency() - 1));
+    std::cin.get();
+    printf("Doing work... \n");
 
     InitializeJobSystem();
 
@@ -97,18 +103,17 @@ int main()
 
     KickJobs(jobs, 40);
 
-    BusyWaitForCounter(&jobCounter);
+    WaitForCounter(&jobCounter);
 
     auto stop_multi_core = std::chrono::steady_clock::now();
     auto interval2 = stop_multi_core - start_multi_core;
 
-    printf("Multithreaded function calls took %d microseconds!\n", 
-        std::chrono::duration_cast<std::chrono::microseconds>(interval2).count());
-
+    printf("The work was executed in %d threads in %d milliseconds!\nPress ENTER to close... ", std::thread::hardware_concurrency() - 1,
+        std::chrono::duration_cast<std::chrono::milliseconds>(interval2).count());
 
     std::cin.get();
+
     DeinitializeJobSystem();
 
-    std::cin.get();
     return 0;
 }

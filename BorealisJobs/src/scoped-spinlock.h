@@ -5,7 +5,7 @@ namespace Borealis::Jobs
 {
 	struct ScopedSpinLock
 	{
-		ScopedSpinLock(SpinLock& const _spinlock) noexcept
+		ScopedSpinLock(const SpinLock& _spinlock) noexcept
 			: spinlock(&_spinlock)
 		{
 			spinlock->Acquire();
@@ -14,10 +14,9 @@ namespace Borealis::Jobs
 		~ScopedSpinLock() noexcept
 		{
 			spinlock->Release();
-			spinlock = nullptr;
 		}
 
 	private:
-		SpinLock* spinlock = nullptr;
+		SpinLock const* spinlock = nullptr;
 	};
 }
