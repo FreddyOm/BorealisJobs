@@ -89,8 +89,19 @@ namespace Borealis::Jobs
 		if (std::this_thread::get_id() == g_mainThreadId)
 			return;	// We are already on the main thread -> Early exit!
 
+		LPVOID fiber = GetFiber();
+		assert(fiber != nullptr);
 
+		// Schedule for wait list!
+		{
+			ScopedSpinLock lock(schedule_list_sl);
+			Counter cnt = Counter(0);
+			schedule_list.emplace(fiber, std::move(WaitData(GetCurrentFiber(), &cnt, 0, true)));
+		}
+		
+		SwitchToFiber(fiber);
 
+		printf("Continuing execution on thread %d\n", std::this_thread::get_id());
 	}
 
 	/// <summary>
@@ -98,10 +109,8 @@ namespace Borealis::Jobs
 	/// </summary>
 	void DeinitializeJobSystem()
 	{
-		// Force the main thread to pick up this execution flow again.
-		ForceMainThreadExecution();
-
 		printf("Deinitializing job system from thread %d\n", GetCurrentThreadId());
+
 		g_runThreads.store(false, std::memory_order_release);
 
 		Sleep(1);
@@ -169,7 +178,7 @@ namespace Borealis::Jobs
 	/// 4. Low priority jobs
 	/// </summary>
 	/// <returns>TThe selected job from either of the four lists.</returns>
-	Jobs::Job GetNextJob()
+	Job GetNextJob()
 	{
 		Jobs::Job jobCpy;
 		
