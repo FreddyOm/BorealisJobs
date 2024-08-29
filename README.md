@@ -3,6 +3,10 @@
 
 **A multi-platform, fiber based job system based on a thread pool written in C and C++.**
 
+## License
+This project is authored by Frederik Omlor and may not be used for commercial or non-commercial purposes other than those specifically granted by the author.
+The project, aswell as all other public projects on the authors GitHub account, may be cloned and used for private uses as long as they are not published in any way.
+
 ## Setup
 
 *** NOTE: This project is currently work in progress and therefore only available for Windows platform! ***
