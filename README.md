@@ -5,21 +5,36 @@
 
 ## Setup
 
-TBD
+*** NOTE: This project is currently work in progress and therefore only available for Windows platform! ***
+
+To setup the project use create a ```build``` folder in this directory, navigate inside the folder and execute the command ```cmake ..```. This will setup the project for your respective platform.
+
+Be aware that the library file (specifically the *BorealisJobs.dll*) will not be copied automatically. In order to execute the test project (see: *BorealisJobsTest/src/main.cpp*) you have to move/copy the library file manually next to the resulting executable!
 
 ## Features
 
 **TODO:** 
-- [ ] Thread pool
-- [ ] Fibers
-- [ ] Jobs
-- [ ] Spinlocks
-- [ ] Scoped Spinlocks
+- [x] Thread pool
+- [x] Fibers
+- [x] Jobs
+- [x] Spinlocks
+- [x] Scoped Spinlocks
+- [ ] Use *boost* to make the project compatible for multiple platforms
+- [ ] Upgrade the test project to use coorperative concurrency and yield to other jobs mid-job
+ 
+## Dependencies
 
-## Dependancies
+Currently, ***BorealisJobs*** has no external dependencies other than the Windows API (Win32). 
 
-TBD
+The Windows API is used for the implementation of the fibers. In the future this will be replaced by the multi-platform implementation of [boost](https://www.boost.org).
 
 ## Sources
+*All of this code (except the spinlock class) was written by Frederik Omlor but is inspired and influencd by multiple sources. No AI was used for writing this projects code.*
 
-TBD
+The sources used for this project are listed below:
+
+- [Game Engine Architecture - Jason Gregory](https://gameenginebook.com/)
+- [Parallelizing the Naughty Dog engine using fibers - Christian Gyrling](https://www.youtube.com/watch?v=HIVBhKj7gQU)
+- [Fiber in C++: Understanding the Basics - A Graphics Guy's Notes](https://agraphicsguynotes.com/posts/fiber_in_cpp_understanding_the_basics/)
+- [Fibers, Oh My! - Dale Weiler](https://graphitemaster.github.io/fibers/)
+- [Correctly implementing a spinlock in C++ - Erik Rigtorp](https://rigtorp.se/spinlock/)
