@@ -97,7 +97,7 @@ int main()
 
     KickJobs(jobs, 40);
 
-    BusyWaitForCounter(&jobCounter);
+    WaitForCounter(&jobCounter);
 
     auto stop_multi_core = std::chrono::steady_clock::now();
     auto interval2 = stop_multi_core - start_multi_core;
@@ -105,8 +105,8 @@ int main()
     printf("Multithreaded function calls took %d microseconds!\n", 
         std::chrono::duration_cast<std::chrono::microseconds>(interval2).count());
 
-
     std::cin.get();
+
     DeinitializeJobSystem();
 
     std::cin.get();
