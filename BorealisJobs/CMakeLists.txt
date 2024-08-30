@@ -35,7 +35,24 @@ else()
 
 endif()
 
+# Fetch Boost library
+set(BOOST_INCLUDE_LIBRARIES fiber)
+set(BOOST_ENABLE_CMAKE ON)
+
+include(FetchContent)
+FetchContent_Declare(
+  Boost
+  GIT_REPOSITORY https://github.com/boostorg/boost.git
+  GIT_TAG boost-1.86.0
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(Boost)
+
 # Create library
 add_library(${CMAKE_PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
 
-target_include_directories(BorealisJobs PUBLIC ${HEADERS})
+# Libraries
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Boost::fiber)
+
+# Include directories
+target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ${HEADERS})

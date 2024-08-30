@@ -14,6 +14,9 @@
 #error The Borealis job system is currently only available for Windows.
 #endif
 
+#include <boost/fiber/fiber.hpp>
+
+using namespace boost::fibers;
 
 namespace Borealis::Jobs
 {
