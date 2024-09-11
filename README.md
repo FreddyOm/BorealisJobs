@@ -9,7 +9,7 @@ The project, aswell as all other public projects on the authors GitHub account, 
 
 ## Setup
 
-*** NOTE: This project is currently work in progress and therefore only available for Windows platform! ***
+***NOTE: This project is currently work in progress and therefore only available for Windows platform!***
 
 To setup the project use create a ```build``` folder in this directory, navigate inside the folder and execute the command ```cmake ..```. This will setup the project for your respective platform.
 
