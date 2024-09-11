@@ -11,9 +11,11 @@ The project, aswell as all other public projects on the authors GitHub account, 
 
 ***NOTE: This project is currently work in progress and therefore only available for Windows platform!***
 
-To setup the project use create a ```build``` folder in this directory, navigate inside the folder and execute the command ```cmake ..```. This will setup the project for your respective platform.
+To setup the project, create a ```build``` folder in this directory, navigate inside the folder and execute the command ```cmake ..```. This will setup the project for your respective platform.
 
 Be aware that the library file (specifically the *BorealisJobs.dll*) will not be copied automatically. In order to execute the test project (see: *BorealisJobsTest/src/main.cpp*) you have to move/copy the library file manually next to the resulting executable!
+
+Required CMake Version: 3.19 or newer. 
 
 ## Features
 
