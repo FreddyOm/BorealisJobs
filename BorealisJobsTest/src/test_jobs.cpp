@@ -111,12 +111,16 @@ TEST(BorealisJobsTest, TestArguments)
     Counter jobCounter = Counter(2);
     EXPECT_EQ(jobCounter, 2);
 
-    KickJob(JOB(BIND(TestStruct::DoTestWork, myTestStruct), &jobCounter, Priority::HIGH, 9999999999));
+    KickJob(JOB(BIND(TestStruct::DoTestWorkWithArgs, myTestStruct, 9999999999), &jobCounter, Priority::HIGH));
     KickJob(JOB(&DoWork, &jobCounter, Priority::HIGH, 9999999999));
     WaitForCounter(&jobCounter);
 
     EXPECT_GT(myTestStruct.testInt1, 1);
     EXPECT_GT(myTestStruct.testInt2, 2);
+
+    EXPECT_LT(myTestStruct.testInt1, 9999999999);
+    EXPECT_LT(myTestStruct.testInt2, 9999999999);
+    
     EXPECT_EQ(jobCounter, 0);
 
 

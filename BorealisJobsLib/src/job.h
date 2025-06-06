@@ -21,7 +21,7 @@ namespace Borealis::Jobs
 
 #define PARALLEL_JOB(entryPoint, priority, ...) Job(entryPoint, priority, #entryPoint, __VA_ARGS__)
 #define JOB(entryPoint, counter, priority, ...) Job(entryPoint, counter, priority, #entryPoint, __VA_ARGS__)
-#define BIND(func, instance) std::bind(&func, &instance)
+#define BIND(func, instance, ...) std::bind(&func, &instance, __VA_ARGS__)
 
 	enum class alignas(4) Priority : short
 	{
