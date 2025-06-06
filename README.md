@@ -3,13 +3,19 @@
 
 **A multi-platform, fiber based job system based on a thread pool written in C and C++.**
 
+## License
+This project is authored by Frederik Omlor and may not be used for commercial or non-commercial purposes other than those specifically granted by the author.
+The project, aswell as all other public projects on the authors GitHub account, may be cloned and used for private uses as long as they are not published in any way.
+
 ## Setup
 
-*** NOTE: This project is currently work in progress and therefore only available for Windows platform! ***
+***NOTE: This project is currently work in progress and therefore only available for Windows platform!***
 
-To setup the project use create a ```build``` folder in this directory, navigate inside the folder and execute the command ```cmake ..```. This will setup the project for your respective platform.
+To setup the project, create a ```build``` folder in this directory, navigate inside the folder and execute the command ```cmake ..```. This will setup the project for your respective platform.
 
 Be aware that the library file (specifically the *BorealisJobs.dll*) will not be copied automatically. In order to execute the test project (see: *BorealisJobsTest/src/main.cpp*) you have to move/copy the library file manually next to the resulting executable!
+
+Required CMake Version: 3.19 or newer. 
 
 ## Features
 
@@ -21,6 +27,7 @@ Be aware that the library file (specifically the *BorealisJobs.dll*) will not be
 - [x] Scoped Spinlocks
 - [ ] Use *boost* to make the project compatible for multiple platforms
 - [ ] Upgrade the test project to use coorperative concurrency and yield to other jobs mid-job
+- [ ] Add JobContext being handed to any job including the thread id, parameters, etc.
  
 ## Dependencies
 
