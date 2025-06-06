@@ -6,7 +6,7 @@ if(${CMAKE_VERSION} VERSION_LESS 3.19)
     cmake_policy(VERSION ${CMAKE_VERSION})
 endif()
 
-message("Building BorealisJobs library...")
+message("Building BoostrealisJobs library...")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -14,6 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 # Project source files
 set(SOURCES 
 src/job-system.cpp
+src/scheduler.cpp
 )
 
 set(HEADERS
@@ -22,6 +23,7 @@ src/job-system.h
 src/job.h
 src/scoped-spinlock.h
 src/spinlock.h
+src/scheduler.h
 )
 
 message("Setting compiler definitions...")
@@ -39,7 +41,7 @@ endif()
 message("Fetching dependencies...")
 
 # Fetch Boost library
-set(BOOST_INCLUDE_LIBRARIES fiber)
+set(BOOST_INCLUDE_LIBRARIES fiber lockfree)
 set(BOOST_ENABLE_CMAKE ON)
 
 include(FetchContent)
@@ -54,10 +56,10 @@ FetchContent_MakeAvailable(Boost)
 message("Create library...")
 
 # Create library
-add_library(${CMAKE_PROJECT_NAME} SHARED ${SOURCES} ${HEADERS})
+add_library(BoostrealisJobs SHARED ${SOURCES} ${HEADERS})
 
 # Libraries
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Boost::fiber)
+target_link_libraries(BoostrealisJobs PRIVATE Boost::fiber Boost::lockfree)
 
 # Include directories
-target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ${HEADERS})
+target_include_directories(BoostrealisJobs PUBLIC ${HEADERS})

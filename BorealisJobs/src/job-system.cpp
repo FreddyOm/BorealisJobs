@@ -14,10 +14,6 @@
 #error The Borealis job system is currently only available for Windows.
 #endif
 
-#include <boost/fiber/fiber.hpp>
-
-using namespace boost::fibers;
-
 namespace Borealis::Jobs
 {
 	// ------------------ General data ------------------
@@ -80,7 +76,7 @@ namespace Borealis::Jobs
 		}
 	};
 
-	std::vector<WaitData> wait_list{};
+	std::vector<WaitData> g_wait_list{};
 	std::unordered_map<LPVOID, WaitData> schedule_list{};
 	
 
@@ -148,12 +144,12 @@ namespace Borealis::Jobs
 		// Clear the wait list and delete all fibers in the wait list
 		{
 			ScopedSpinLock lock(wait_list_sl);
-			for(int i = 0; i < wait_list.size(); ++i)
+			for(int i = 0; i < g_wait_list.size(); ++i)
 			{
-				DeleteFiber(wait_list[i].m_Fiber);
+				DeleteFiber(g_wait_list[i].m_Fiber);
 			}
 
-			wait_list.clear();
+			g_wait_list.clear();
 		}
 
 		// Delete all scheduled fibers and clear the list
@@ -248,12 +244,12 @@ namespace Borealis::Jobs
 
 		bool waitListAlreadyReleased = false;
 
-		if (!wait_list.empty())
+		if (!g_wait_list.empty())
 		{
 			bool isValidData = false;
 			std::vector<WaitData>::iterator validWaitData = {};
 
-			for (auto it = wait_list.begin(); it != wait_list.end(); ++it)
+			for (auto it = g_wait_list.begin(); it != g_wait_list.end(); ++it)
 			{
 				if (it->m_pCounter->load(std::memory_order_relaxed) <= it->m_desiredCount)
 				{
@@ -273,7 +269,7 @@ namespace Borealis::Jobs
 				{
 					ScopedSpinLock lock(fiber_pool_sl);
 					
-					wait_list.erase(validWaitData);
+					g_wait_list.erase(validWaitData);
 					wait_list_sl.Release();
 					waitListAlreadyReleased = true;				// Store in FLS that we actually released the wait list spin lock!
 					fiber_pool.push(GetCurrentFiber());
@@ -387,7 +383,7 @@ namespace Borealis::Jobs
 			fiber_pool.push(fiber);
 		}
 
-		wait_list.reserve(fiber_pool.size());
+		g_wait_list.reserve(fiber_pool.size());
 	}
 
 	/// <summary>
@@ -566,7 +562,7 @@ namespace Borealis::Jobs
 
 			{
 				ScopedSpinLock wl_lock(wait_list_sl);
-				wait_list.push_back(std::move(waitDataCpy));
+				g_wait_list.push_back(std::move(waitDataCpy));
 			}
 		}
 	}

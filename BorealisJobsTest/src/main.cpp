@@ -14,17 +14,18 @@ JobReturnType DoWork(uintptr_t seed = 383628)
     std::mt19937 gen(seed);
     std::uniform_real_distribution<> dis(0.0, 1.0);
 
+    constexpr int dataCount = 10000;
     // Create a vector of random doubles
-    std::vector<double> data(900);
+    std::vector<double> data(dataCount);
     for (auto& elem : data) {
         elem = dis(gen);
     }
 
     // Perform computationally expensive operations
-    for (size_t i = 0; i < 900; ++i) {
+    for (size_t i = 0; i < dataCount; ++i) {
         double sum = 0.0;
-        for (size_t j = 0; j < 900; ++j) {
-            sum += std::sin(data[j]) * std::cos(data[(i + j) % 900]);
+        for (size_t j = 0; j < dataCount; ++j) {
+            sum += std::sin(data[j]) * std::cos(data[(i + j) % dataCount]);
         }
         data[i] = std::exp(std::fabs(sum));
     }
@@ -65,12 +66,14 @@ int main()
     auto stop_single_core = std::chrono::steady_clock::now();
     auto interval = stop_single_core - start_single_core;
 
-    printf("The work was executed in one single thread in %d milliseconds!\n", 
+    printf("The work was executed on one single thread in %d milliseconds!\n", 
         std::chrono::duration_cast<std::chrono::milliseconds>(interval).count());
 
     printf("Press ENTER to start the heavy work on %d cores... \n", (std::thread::hardware_concurrency() - 1));
     std::cin.get();
     printf("Doing work... \n");
+
+
 
     InitializeJobSystem();
 
@@ -108,7 +111,7 @@ int main()
     auto stop_multi_core = std::chrono::steady_clock::now();
     auto interval2 = stop_multi_core - start_multi_core;
 
-    printf("The work was executed in %d threads in %d milliseconds!\nPress ENTER to close... ", std::thread::hardware_concurrency() - 1,
+    printf("The work was executed on %d threads in %d milliseconds!\nPress ENTER to close... ", std::thread::hardware_concurrency() - 1,
         std::chrono::duration_cast<std::chrono::milliseconds>(interval2).count());
 
     std::cin.get();

@@ -22,5 +22,6 @@ message("Building ${CMAKE_PROJECT_NAME} v${CMAKE_PROJECT_VERSION}")
 
 link_directories(BorealisJobs/Debug/)
 
+add_subdirectory(BoostrealisJobs)
 add_subdirectory(BorealisJobs)
 add_subdirectory(BorealisJobsTest)
