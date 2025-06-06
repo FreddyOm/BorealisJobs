@@ -370,7 +370,7 @@ namespace Borealis::Jobs
 
 		// Reconvert the fiber to a thread.
 		ConvertFiberToThread();
-		printf("Terminating Thread %d ...\n", std::this_thread::get_id());
+		printf("Terminating Thread %u ...\n", std::this_thread::get_id());
 	}
 
 	/// <summary>
@@ -391,7 +391,7 @@ namespace Borealis::Jobs
 	/// Creates and initializes the thread pool and some dependant resources.
 	/// </summary>
 	/// <param name="numOfThreads">The amount of threads to spawn in the thread pool.</param>
-	void CreateThreadPool(int numOfThreads)
+	void CreateThreadPool(const int numOfThreads)
 	{
 		// Init map and array with the amount of worker threads to be spawned
 		g_thread_fibers.reserve(numOfThreads);
@@ -442,7 +442,7 @@ namespace Borealis::Jobs
 	/// Returns a fiber to the fiber pool.
 	/// </summary>
 	/// <param name="fiber"></param>
-	void ReturnFiber(LPVOID fiber)
+	void ReturnFiber(const LPVOID fiber)
 	{
 		// Critical section!
 		{
@@ -455,7 +455,7 @@ namespace Borealis::Jobs
 	/// Schedules a job to be executed by the worker threads.
 	/// </summary>
 	/// <param name="job">The job to be executed.</param>
-	void KickJob(Job& job)
+	void KickJob(const Job& job)
 	{
 		switch (job.m_Priority)
 		{
@@ -485,7 +485,7 @@ namespace Borealis::Jobs
 	/// </summary>
 	/// <param name="jobs">A pointer to the job array.</param>
 	/// <param name="jobCount">The amount of jobs to be scheduled. Must be the size of the referenced job array.</param>
-	void KickJobs(Job* jobs, int jobCount)
+	void KickJobs(Job* const jobs, const int jobCount)
 	{
 		for (int i = 0; i < jobCount; ++i)
 		{
@@ -518,7 +518,7 @@ namespace Borealis::Jobs
 	/// Do not use this extensively or the performance will be similar to single core performance plus overhead!!
 	/// </summary>
 	/// <param name="job">The job to be executed on the main thread.</param>
-	void KickMainThreadJob(Job& job)
+	void KickMainThreadJob(const Job& job)
 	{
 		ScopedSpinLock lock(main_thread_job_queue_sl);
 		g_main_thread_job_queue.push_back(std::move(job));
@@ -530,7 +530,7 @@ namespace Borealis::Jobs
 	/// </summary>
 	/// <param name="jobs">The jobs to be executed on the main thread.</param>
 	/// <param name="jobCount">The amount of jobs to be executed on the main thread.</param>
-	void KickMainThreadJobs(Job* jobs, int jobCount)
+	void KickMainThreadJobs(Job* const jobs, const int jobCount)
 	{
 		ScopedSpinLock lock(main_thread_job_queue_sl);
 

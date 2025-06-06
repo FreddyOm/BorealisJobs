@@ -6,8 +6,51 @@
 #include "../../src/job-system.h"
 #include <chrono>
 
+#include <gtest/gtest.h>
+
+#ifdef BOREALIS_WIN
+
 using namespace Borealis::Jobs;
 
+// Object related test functions
+struct TestStruct
+{
+    JobReturnType DoTestWork()
+    {
+        std::mt19937 gen(98349109847);
+        std::uniform_int_distribution<> dis(0, INT_MAX);
+
+        static const int maxNum = dis(gen);
+
+        while (testInt2 < maxNum)
+        {
+            const int temp1 = testInt1;
+            const int temp2 = testInt2;
+
+            testInt2 = temp1 + temp2;
+            testInt1 = temp2;
+        }
+    }
+
+    JobReturnType DoTestWorkWithArgs(unsigned long long _maxNum)
+    {
+        static const int maxNum = _maxNum;
+
+        while (testInt2 < maxNum)
+        {
+            const int temp1 = testInt1;
+            const int temp2 = testInt2;
+
+            testInt2 = temp1 + temp2;
+            testInt1 = temp2;
+        }
+    }
+
+    int testInt1 = 1;
+    int testInt2 = 2;
+};
+
+// Global test function
 JobReturnType DoWork(uintptr_t seed = 383628)
 {
     // Initialize random number generator
@@ -33,50 +76,60 @@ JobReturnType DoWork(uintptr_t seed = 383628)
     std::sort(data.begin(), data.end());
 }
 
-int main()
+
+TEST(BorealisJobsTest, TestGeneralUsage)
 {
-    printf("Press ENTER to start the heavy work on a single core... \n");
-    std::cin.get();
-    printf("Doing work... \n");
-
-    auto start_single_core = std::chrono::steady_clock::now();
-
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-    DoWork();         DoWork();
-
-    auto stop_single_core = std::chrono::steady_clock::now();
-    auto interval = stop_single_core - start_single_core;
-
-    printf("The work was executed in one single thread in %d milliseconds!\n", 
-        std::chrono::duration_cast<std::chrono::milliseconds>(interval).count());
-
-    printf("Press ENTER to start the heavy work on %d cores... \n", (std::thread::hardware_concurrency() - 1));
-    std::cin.get();
-    printf("Doing work... \n");
-
     InitializeJobSystem();
 
-    auto start_multi_core = std::chrono::steady_clock::now();
+    TestStruct myTestStruct;
+
+    EXPECT_EQ(myTestStruct.testInt1, 1);
+    EXPECT_EQ(myTestStruct.testInt2, 2);
+
+    Counter jobCounter = Counter(2);
+    EXPECT_EQ(jobCounter, 2);
+
+    KickJob(JOB(BIND(TestStruct::DoTestWork, myTestStruct), &jobCounter, Priority::HIGH));
+    KickJob(JOB(&DoWork, &jobCounter, Priority::HIGH));
+    WaitForCounter(&jobCounter);
+
+    EXPECT_GT(myTestStruct.testInt1, 1);
+    EXPECT_GT(myTestStruct.testInt2, 2);
+    EXPECT_EQ(jobCounter, 0);
+
+    DeinitializeJobSystem();
+}
+
+TEST(BorealisJobsTest, TestArguments)
+{
+    InitializeJobSystem();
+
+    TestStruct myTestStruct;
+    EXPECT_EQ(myTestStruct.testInt1, 1);
+    EXPECT_EQ(myTestStruct.testInt2, 2);
+
+    Counter jobCounter = Counter(2);
+    EXPECT_EQ(jobCounter, 2);
+
+    KickJob(JOB(BIND(TestStruct::DoTestWork, myTestStruct), &jobCounter, Priority::HIGH, 9999999999));
+    KickJob(JOB(&DoWork, &jobCounter, Priority::HIGH, 9999999999));
+    WaitForCounter(&jobCounter);
+
+    EXPECT_GT(myTestStruct.testInt1, 1);
+    EXPECT_GT(myTestStruct.testInt2, 2);
+    EXPECT_EQ(jobCounter, 0);
+
+
+    DeinitializeJobSystem();
+}
+
+TEST(BorealisJobsTest, TestBatchJobs)
+{
+    InitializeJobSystem();
 
     Counter jobCounter = Counter(40);
+    EXPECT_EQ(jobCounter, 40);
+    
     Job jobs[] =
     {
         JOB(&DoWork, &jobCounter, Priority::NORMAL),            JOB(&DoWork, &jobCounter, Priority::NORMAL),
@@ -102,18 +155,15 @@ int main()
     };
 
     KickJobs(jobs, 40);
-
-    WaitForCounter(&jobCounter);
-
-    auto stop_multi_core = std::chrono::steady_clock::now();
-    auto interval2 = stop_multi_core - start_multi_core;
-
-    printf("The work was executed in %d threads in %d milliseconds!\nPress ENTER to close... ", std::thread::hardware_concurrency() - 1,
-        std::chrono::duration_cast<std::chrono::milliseconds>(interval2).count());
-
-    std::cin.get();
+    EXPECT_NO_FATAL_FAILURE(WaitForCounter(&jobCounter), "");
+    EXPECT_EQ(jobCounter, 0);
 
     DeinitializeJobSystem();
-
-    return 0;
 }
+
+TEST(BorealisJobsTest, TestHierarchicalJobs)
+{
+    // Test jobs waiting on jobs waiting on jobs ...
+}
+
+#endif
