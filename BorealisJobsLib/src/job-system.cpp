@@ -101,7 +101,7 @@ namespace Borealis::Jobs
 		
 		SwitchToFiber(fiber);
 
-		printf("Continuing execution on thread %d\n", std::this_thread::get_id());
+		printf("Continuing execution on thread %d\n", GetCurrentThreadId());
 	}
 
 	/// <summary>
@@ -370,7 +370,7 @@ namespace Borealis::Jobs
 
 		// Reconvert the fiber to a thread.
 		ConvertFiberToThread();
-		printf("Terminating Thread %u ...\n", std::this_thread::get_id());
+		printf("Terminating Thread %d ...\n", GetCurrentThreadId());
 	}
 
 	/// <summary>
@@ -462,19 +462,19 @@ namespace Borealis::Jobs
 			case Priority::HIGH:
 			{
 				ScopedSpinLock lock(job_queue_high_sl);
-				g_job_queue_high.push_back(std::move(job));
+				g_job_queue_high.push_back(job);
 				break;
 			}		
 			case Priority::NORMAL:
 			{
 				ScopedSpinLock lock(job_queue_normal_sl);
-				g_job_queue_normal.push_back(std::move(job));
+				g_job_queue_normal.push_back(job);
 				break;
 			}
 			case Priority::LOW:
 			{
 				ScopedSpinLock lock(job_queue_low_sl);
-				g_job_queue_low.push_back(std::move(job));
+				g_job_queue_low.push_back(job);
 				break;
 			}
 		}
@@ -494,19 +494,19 @@ namespace Borealis::Jobs
 				case Priority::HIGH:
 				{
 					ScopedSpinLock lock(job_queue_high_sl);
-					g_job_queue_high.push_back(std::move(jobs[i]));
+					g_job_queue_high.push_back(jobs[i]);
 					break;
 				}
 				case Priority::NORMAL:
 				{
 					ScopedSpinLock lock(job_queue_normal_sl);
-					g_job_queue_normal.push_back(std::move(jobs[i]));
+					g_job_queue_normal.push_back(jobs[i]);
 					break;
 				}
 				case Priority::LOW:
 				{
 					ScopedSpinLock lock(job_queue_low_sl);
-					g_job_queue_low.push_back(std::move(jobs[i]));
+					g_job_queue_low.push_back(jobs[i]);
 					break;
 				}
 			}
@@ -521,7 +521,7 @@ namespace Borealis::Jobs
 	void KickMainThreadJob(const Job& job)
 	{
 		ScopedSpinLock lock(main_thread_job_queue_sl);
-		g_main_thread_job_queue.push_back(std::move(job));
+		g_main_thread_job_queue.push_back(job);
 	}
 
 	/// <summary>

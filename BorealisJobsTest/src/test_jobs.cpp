@@ -1,12 +1,10 @@
-#include <iostream>
 #include <vector>
 #include <cmath>
 #include <random>
 #include <algorithm>
-#include "../../src/job-system.h"
-#include <chrono>
 
 #include <gtest/gtest.h>
+#include "../../src/job-system.h"
 
 #ifdef BOREALIS_WIN
 
@@ -159,7 +157,7 @@ TEST(BorealisJobsTest, TestBatchJobs)
     };
 
     KickJobs(jobs, 40);
-    EXPECT_NO_FATAL_FAILURE(WaitForCounter(&jobCounter), "");
+    EXPECT_NO_FATAL_FAILURE(WaitForCounter(&jobCounter));
     EXPECT_EQ(jobCounter, 0);
 
     DeinitializeJobSystem();
