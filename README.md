@@ -28,6 +28,7 @@ Required CMake Version: 3.19 or newer.
 - [ ] Use *boost* to make the project compatible for multiple platforms
 - [ ] Upgrade the test project to use coorperative concurrency and yield to other jobs mid-job
 - [ ] Add JobContext being handed to any job including the thread id, parameters, etc.
+- [ ] Visualizing the jobs as graph / DAG
  
 ## Dependencies
 
