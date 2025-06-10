@@ -33,14 +33,35 @@ src/scoped-spinlock.h
 src/spinlock.h
 )
 
+# Set platform preprocessor info  
 if(WIN32)
-add_compile_definitions(BOREALIS_BUILD_DLL)
-elseif(LINUX)
-add_compile_definitions(LINUX)
-else()
-# Anything else
-
+    message("Configuring tests for Windows platform")
+    add_compile_definitions(BOREALIS_BUILD_DLL)
+    add_compile_definitions(BOREALIS_WIN)
+elseif(APPLE)
+    message("Configuring tests for MacOS platform")
+    add_compile_definitions(BOREALIS_OSX)
+elseif(UNIX)
+    message("Configuring tests for Linux platform")
+    add_compile_definitions(BOREALIS_LINUX)
 endif()
+
+message("Fetching dependencies...")
+
+# Fetch Boost library
+set(BOOST_INCLUDE_LIBRARIES fiber lockfree)
+set(BOOST_ENABLE_CMAKE ON)
+
+include(FetchContent)
+FetchContent_Declare(
+  Boost
+  GIT_REPOSITORY https://github.com/boostorg/boost.git
+  GIT_TAG boost-1.86.0
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(Boost)
+
+message("Create library...")
 
 # Create library
 add_library(BorealisJobsLib SHARED ${SOURCES} ${HEADERS})
@@ -52,5 +73,8 @@ target_compile_definitions(BorealisJobsLib PRIVATE
         $<$<CONFIG:MinSizeRel>:BOREALIS_MINSIZEREL>
 )
 
+# Libraries
+target_link_libraries(BoostrealisJobs PRIVATE Boost::fiber Boost::lockfree)
 
+# Include directories
 target_include_directories(BorealisJobsLib PUBLIC ${HEADERS})
