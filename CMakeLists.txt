@@ -20,7 +20,5 @@ project(
 
 message("Building ${CMAKE_PROJECT_NAME} v${CMAKE_PROJECT_VERSION}")
 
-#link_directories(BorealisJobsLib/Debug/)
-
 add_subdirectory(BorealisJobsLib)
 add_subdirectory(BorealisJobsTest)
