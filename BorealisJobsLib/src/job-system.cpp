@@ -8,7 +8,7 @@
 #include <mutex>
 #include <unordered_map>
 
-#ifdef WIN32
+#ifdef BOREALIS_WIN
 #include <Windows.h>
 #else
 #error The Borealis job system is currently only available for Windows.

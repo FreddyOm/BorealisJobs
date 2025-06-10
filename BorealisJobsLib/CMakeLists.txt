@@ -34,7 +34,6 @@ src/spinlock.h
 )
 
 if(WIN32)
-add_compile_definitions(WIN32)
 add_compile_definitions(BOREALIS_BUILD_DLL)
 elseif(LINUX)
 add_compile_definitions(LINUX)
