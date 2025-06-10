@@ -6,7 +6,7 @@
 #include <gtest/gtest.h>
 #include "../../src/job-system.h"
 
-#ifdef BOREALIS_WIN
+#ifdef BOREALIS_WIN // TODO: Remove when cross-platform implementation is ready
 
 using namespace Borealis::Jobs;
 

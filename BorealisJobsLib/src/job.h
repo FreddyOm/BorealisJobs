@@ -7,10 +7,8 @@
 #ifdef BOREALIS_WIN
 #include <Windows.h>
 #else
-#error The Borealis job system is currently only available for Windows.
+//#error The Borealis job system is currently only available for Windows.
 #endif
-
-// @TODO: Add Win32 or in case of LINUX / MAC something similar
 
 namespace Borealis::Jobs
 {
@@ -59,22 +57,20 @@ namespace Borealis::Jobs
 			: m_EntryPoint(ep), m_Param(args), m_pCounter(pCnt), m_Priority(pr), m_FunctionName(functionName)
 		{ }
 
-		/// <summary>
+		/*/// <summary>
 		/// Explicitly copies the job - only used for debug purposes currently.
 		/// </summary>
 		/// <returns>A copy of the job description.</returns>
 		Job Copy() const
 		{
-#ifndef _DEBUG
-			static_assert(false, "Copying fibers in debug mode is not allowed at the moment!")
-#endif
+
 			Job cpy(m_EntryPoint, m_Priority, m_FunctionName, m_Param);
 			cpy.m_DesiredCount = m_DesiredCount;
 			cpy.m_Fiber = m_Fiber;
 			cpy.m_pCounter = m_pCounter;
 
 			return cpy;
-		}
+		}*/
 
 		// Copy semantics
 		Job(const Job& other)

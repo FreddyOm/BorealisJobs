@@ -115,7 +115,7 @@ namespace Borealis::Jobs
 		Sleep(1);
 
 		if(IsThreadAFiber())
-			ConvertFiberToThread(); // @TODO: Which thread will this be and will it be joined soon?
+			ConvertFiberToThread(); // TODO: Which thread will this be and will it be joined soon?
 
 		// Join and clear the worker threads
 		{
@@ -296,7 +296,7 @@ namespace Borealis::Jobs
 		while (g_runThreads)
 		{
 			{
-				UpdateWaitData();	// @TODO: Try to somehow do this more elegantly!!
+				UpdateWaitData();	// TODO: Try to somehow do this more elegantly!!
 
 				CheckWaitList();
 

@@ -58,7 +58,7 @@ target_compile_definitions(BorealisJobsTest PRIVATE
 )
 
 
-if(WIN32)
+if(WIN32)   # @TODO: Remove when project is cross platform compatible
 
 #Copy necessary dll to output directory
 add_custom_command(
