@@ -1,5 +1,14 @@
 # BorealisJobs
-![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-multi-platform.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-win-debug.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-win-release.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-win-min-size-rel.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-win-rel-with-deb-info.yml/badge.svg)      
+
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-linux-debug.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-linux-release.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-linux-min-size-rel.yml/badge.svg)
+![CMake Multi Platform Build](https://github.com/FreddyOm/BorealisJobs/actions/workflows/cmake-linux-rel-with-deb-info.yml/badge.svg)      
+
 
 **A multi-platform, fiber based job system based on a thread pool written in C and C++.**
 
