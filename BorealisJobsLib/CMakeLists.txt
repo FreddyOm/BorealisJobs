@@ -74,7 +74,7 @@ target_compile_definitions(BorealisJobsLib PRIVATE
 )
 
 # Libraries
-target_link_libraries(BoostrealisJobs PRIVATE Boost::fiber Boost::lockfree)
+target_link_libraries(BorealisJobsLib PRIVATE Boost::fiber Boost::lockfree)
 
 # Include directories
 target_include_directories(BorealisJobsLib PUBLIC ${HEADERS})
